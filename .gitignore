@@ -13,3 +13,4 @@ violations/*.jpg
 violations/*.json
 violations/*.csv
 !violations/.gitkeep
+!violations/.gitkeep

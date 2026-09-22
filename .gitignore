@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.idea/
+.vscode/
+*.pt
+*.onnx
+*.mp4
+*.avi
+violations/*.jpg
+violations/*.json
+violations/*.csv
+!violations/.gitkeep

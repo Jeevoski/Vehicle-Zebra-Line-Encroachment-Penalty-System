@@ -195,6 +195,7 @@ def main() -> None:
             if not success or raw_frame is None:
                 break
             frame: np.ndarray = np.asarray(raw_frame)
+            clean_frame: np.ndarray = frame.copy()
             frame_count += 1
             if not rois_scaled:
                 active_zebra_roi, active_signal_rois = scale_rois(frame)
@@ -206,9 +207,20 @@ def main() -> None:
                 if future.done():
                     try:
                         plate: Any = future.result()
-                        entry["plate_number"] = str(getattr(plate, "text", plate))
-                        entry["confidence"] = round(float(getattr(plate, "confidence", 0.0)), 4)
+                        plate_text = str(getattr(plate, "text", plate))
+                        plate_conf = round(float(getattr(plate, "confidence", 0.0)), 4)
+                        entry["plate_number"] = plate_text
+                        entry["confidence"] = plate_conf
+                        plate_crop = getattr(plate, "plate_crop", None)
+                        if plate_crop is not None and plate_text != "UNKNOWN":
+                            plate_filename = f"ID{track_id}_PLATE_{plate_text}.jpg"
+                            plate_save_path = Path(config.VIOLATIONS_DIR) / plate_filename
+                            cv2.imwrite(str(plate_save_path), plate_crop)
+                            entry["plate_file_path"] = str(plate_save_path)
+                            print(f"\n>>> [ANPR RECOGNIZED] Vehicle ID: {track_id} | Plate: {plate_text} ({plate_conf*100:.1f}%) | Saved to: {plate_filename} <<<\n")
                         append_violation(entry)
+                        if not args.no_web:
+                            add_violation_to_dashboard(entry)
                     except Exception:
                         LOGGER.exception("Error processing ANPR result for vehicle %s", track_id)
                     completed_ids.append(track_id)
@@ -265,7 +277,7 @@ def main() -> None:
                         violating_ids.add(track_id)
                         if track_id not in penalized_ids:
                             penalized_ids.add(track_id)
-                            vehicle_crop = crop_box(frame, (x1, y1, x2, y2))
+                            vehicle_crop = crop_box(clean_frame, (x1, y1, x2, y2))
                             timestamp = datetime.now(timezone.utc).astimezone()
                             stamp = timestamp.strftime("%Y%m%d_%H%M%S")
                             filename = f"ID{track_id}_PENDING_{stamp}.jpg"

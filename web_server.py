@@ -76,7 +76,12 @@ class DashboardState:
 
     def add_violation(self, entry: dict[str, Any]) -> None:
         with self.lock:
-            # Prepend newest violation
+            v_id = entry.get("vehicle_id")
+            v_time = entry.get("timestamp")
+            for idx, existing in enumerate(self.recent_violations):
+                if existing.get("vehicle_id") == v_id and existing.get("timestamp") == v_time:
+                    self.recent_violations[idx] = entry
+                    return
             self.recent_violations.insert(0, entry)
             self.recent_violations = self.recent_violations[:60]
             self.violation_count += 1
@@ -735,6 +740,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <img id="modalImg" src="" alt="Violation Snapshot" />
       </div>
       <div class="modal-body">
+        <div id="modalPlateImgContainer" style="display:none; margin-bottom:14px; background:rgba(0,0,0,0.5); padding:10px; border-radius:12px; border:1px solid var(--card-border); text-align:center;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px; letter-spacing:0.5px; font-weight:700;">ENHANCED LICENSE PLATE CROP</div>
+          <img id="modalPlateImg" src="" style="max-height:85px; max-width:100%; object-fit:contain; border-radius:6px;" alt="Enhanced Plate" />
+        </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
           <h2 id="modalTitle" style="font-size:18px; font-weight:700;">Vehicle #ID-0</h2>
           <span id="modalTime" style="font-size:12px; color:var(--text-muted);">--:--:--</span>
@@ -840,10 +849,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           const plate = item.plate_number || 'PENDING';
           const time = new Date(item.timestamp).toLocaleTimeString();
           const cleanPath = (item.file_path || '').replace(/\\\\/g, '/');
+          const cleanPlatePath = (item.plate_file_path || '').replace(/\\\\/g, '/');
           const conf = (parseFloat(item.confidence || 0) * 100).toFixed(0);
 
           html += `
-            <div class="violation-card" onclick="openModal('${cleanPath}', '${id}', '${time}', '${plate}', '${conf}')">
+            <div class="violation-card" onclick="openModal('${cleanPath}', '${id}', '${time}', '${plate}', '${conf}', '${cleanPlatePath}')">
               <div class="thumb-wrapper">
                 <img src="/${cleanPath}" alt="ID ${id}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23334155%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2210%22>PHOTO</text></svg>'"/>
               </div>
@@ -879,13 +889,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
-    function openModal(imgSrc, id, time, plate, conf) {
+    function openModal(imgSrc, id, time, plate, conf, plateImg) {
       document.getElementById('modalImg').src = '/' + imgSrc;
       document.getElementById('modalTitle').innerText = 'Vehicle #' + id + ' (Zebra Violation)';
       document.getElementById('modalTime').innerText = time;
       document.getElementById('modalPlate').innerText = plate;
       document.getElementById('modalConfidence').innerText = conf + '%';
       document.getElementById('modalDownload').href = '/' + imgSrc;
+      
+      const plateContainer = document.getElementById('modalPlateImgContainer');
+      if (plateImg && plateImg !== '' && plateImg !== 'undefined') {
+        document.getElementById('modalPlateImg').src = '/' + plateImg;
+        plateContainer.style.display = 'block';
+      } else {
+        plateContainer.style.display = 'none';
+      }
       document.getElementById('evidenceModal').style.display = 'flex';
     }
 

@@ -20,6 +20,12 @@ from anpr_engine import ANPREngine
 from screen_capture import ScreenCapture
 from signal_detector import TrafficSignalDetector
 from stream_loader import ThreadedStreamLoader
+from web_server import (
+    add_violation_to_dashboard,
+    get_signal_override,
+    start_dashboard,
+    update_dashboard,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 LOGGER = logging.getLogger("stripeguard")
@@ -108,12 +114,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--conf", type=float, default=0.35, help="YOLO confidence threshold (default: 0.35)")
     parser.add_argument("--output-video", help="Save annotated detections to this video path")
     parser.add_argument("--imgsz", type=int, default=640, help="YOLO inference size")
+    parser.add_argument("--no-web", action="store_true", help="Disable the browser frontend dashboard")
+    parser.add_argument("--web-port", type=int, default=5000, help="Web dashboard port (default: 5000)")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     config.ensure_output_directories()
+    if not args.no_web:
+        start_dashboard(port=args.web_port)
     model = YOLO(args.model)
     ocr = ANPREngine(gpu=config.OCR_GPU and not args.cpu_ocr, min_confidence=config.MIN_PLATE_CONFIDENCE)
     signal_detector = TrafficSignalDetector(
@@ -204,6 +214,14 @@ def main() -> None:
                     completed_ids.append(track_id)
             for track_id in completed_ids:
                 pending_ocr.pop(track_id, None)
+            if not args.no_web:
+                web_mode, web_sig = get_signal_override()
+                if web_mode == "manual":
+                    args.signal_mode = "manual"
+                    manual_signal = web_sig
+                elif web_mode == "auto" and args.signal_mode == "manual" and not args.force_red:
+                    args.signal_mode = "auto"
+
             detected_signal = signal_detector.detect(frame)
             signal = manual_signal if args.signal_mode == "manual" else detected_signal
             if signal == "RED" and previous_signal != "RED":
@@ -262,6 +280,8 @@ def main() -> None:
                             }
                             pending_ocr[track_id] = (ocr_executor.submit(ocr.extract_plate, vehicle_crop), entry)
                             violation_count += 1
+                            if not args.no_web:
+                                add_violation_to_dashboard(entry)
                             LOGGER.info("Violation captured: %s", entry)
                             print(f"\n>>> [VIOLATION RECORDED!] Vehicle ID: {track_id} | Saved to: {output_path} <<<\n")
                             try:
@@ -297,6 +317,8 @@ def main() -> None:
                 print(f"\r[StripeGuard] Frame: {frame_count:05d} | Signal: {signal:5s} | Vehicles Tracked: {len(tracked_ids)} | Violations: {violation_count} ", end="", flush=True)
             if output_writer is not None:
                 output_writer.write(frame)
+            if not args.no_web:
+                update_dashboard(frame, signal, len(tracked_ids), violation_count, fps, measured_source_fps)
             key = -1
             if not args.headless:
                 cv2.imshow(config.WINDOW_NAME, fit_preview(frame))

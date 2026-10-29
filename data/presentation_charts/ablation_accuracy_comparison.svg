@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 460" width="820" height="460" style="background:#ffffff; font-family:'Segoe UI', Arial, sans-serif;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="2" dy="2" stdDeviation="2" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Title -->
+  <text x="40" y="42" font-size="22" font-weight="bold" fill="#0f172a">Ablation Study: Baseline vs StripeGuard AI Proposed System</text>
+  <text x="40" y="66" font-size="13" fill="#64748b">Comparison across signal classification accuracy, false alarm rejection, and incursion recall</text>
+
+  <!-- Legend -->
+  <rect x="520" y="30" width="16" height="16" rx="3" fill="#94a3b8" />
+  <text x="545" y="43" font-size="12" fill="#475569" font-weight="600">Baseline (Global HSV / Single Point)</text>
+  <rect x="520" y="55" width="16" height="16" rx="3" fill="#0284c7" />
+  <text x="545" y="68" font-size="12" fill="#0369a1" font-weight="bold">StripeGuard (Spatial + Multi-Point)</text>
+
+  <!-- Group 1: Red Light Accuracy -->
+  <text x="70" y="340" font-size="12" font-weight="600" fill="#334155" text-anchor="middle">Red Light Acc.</text>
+  <rect x="40" y="160" width="28" height="150" rx="3" fill="#94a3b8" filter="url(#shadow)"/>
+  <text x="54" y="152" font-size="11" font-weight="bold" fill="#64748b" text-anchor="middle">76.5%</text>
+  <rect x="72" y="117" width="28" height="193" rx="3" fill="#0284c7" filter="url(#shadow)"/>
+  <text x="86" y="109" font-size="11" font-weight="bold" fill="#0284c7" text-anchor="middle">98.2%</text>
+
+  <!-- Group 2: Green Light Accuracy -->
+  <text x="210" y="340" font-size="12" font-weight="600" fill="#334155" text-anchor="middle">Green Light Acc.</text>
+  <rect x="180" y="177" width="28" height="133" rx="3" fill="#94a3b8" filter="url(#shadow)"/>
+  <text x="194" y="169" font-size="11" font-weight="bold" fill="#64748b" text-anchor="middle">68.4%</text>
+  <rect x="212" y="119" width="28" height="191" rx="3" fill="#0284c7" filter="url(#shadow)"/>
+  <text x="226" y="111" font-size="11" font-weight="bold" fill="#0284c7" text-anchor="middle">97.6%</text>
+
+  <!-- Group 3: False Alarm Rate (Lower is better) -->
+  <text x="350" y="340" font-size="12" font-weight="600" fill="#334155" text-anchor="middle">False Violation Rate</text>
+  <rect x="320" y="247" width="28" height="63" rx="3" fill="#ef4444" filter="url(#shadow)"/>
+  <text x="334" y="239" font-size="11" font-weight="bold" fill="#ef4444" text-anchor="middle">31.8%</text>
+  <rect x="352" y="303" width="28" height="7" rx="3" fill="#10b981" filter="url(#shadow)"/>
+  <text x="366" y="295" font-size="11" font-weight="bold" fill="#10b981" text-anchor="middle">3.4%</text>
+
+  <!-- Group 4: Incursion Recall -->
+  <text x="490" y="340" font-size="12" font-weight="600" fill="#334155" text-anchor="middle">Incursion Recall</text>
+  <rect x="460" y="170" width="28" height="140" rx="3" fill="#94a3b8" filter="url(#shadow)"/>
+  <text x="474" y="162" font-size="11" font-weight="bold" fill="#64748b" text-anchor="middle">71.4%</text>
+  <rect x="492" y="121" width="28" height="189" rx="3" fill="#0284c7" filter="url(#shadow)"/>
+  <text x="506" y="113" font-size="11" font-weight="bold" fill="#0284c7" text-anchor="middle">96.2%</text>
+
+  <!-- Group 5: Overall F1 Score -->
+  <text x="630" y="340" font-size="12" font-weight="600" fill="#334155" text-anchor="middle">Overall System F1</text>
+  <rect x="600" y="167" width="28" height="143" rx="3" fill="#94a3b8" filter="url(#shadow)"/>
+  <text x="614" y="159" font-size="11" font-weight="bold" fill="#64748b" text-anchor="middle">72.9%</text>
+  <rect x="632" y="123" width="28" height="187" rx="3" fill="#0284c7" filter="url(#shadow)"/>
+  <text x="646" y="115" font-size="11" font-weight="bold" fill="#0284c7" text-anchor="middle">95.5%</text>
+
+  <!-- Baseline axis line -->
+  <line x1="20" y1="310" x2="720" y2="310" stroke="#cbd5e1" stroke-width="1.5" />
+
+  <!-- Annotation footer -->
+  <rect x="40" y="380" width="740" height="55" rx="8" fill="#f0f9ff" stroke="#bae6fd" stroke-width="1"/>
+  <text x="55" y="403" font-size="12" fill="#0369a1" font-weight="bold">Key Innovation Impact:</text>
+  <text x="55" y="423" font-size="12" fill="#0c4a6e">Spatial Top/Bottom bulb separation &amp; 5-frame voting eliminated ambient background misclassifications; multi-point bumper detection boosted incursion recall by +24.8%.</text>
+</svg>

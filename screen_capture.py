@@ -1,7 +1,9 @@
 """Windows desktop capture adapter for game and simulator input."""
 from __future__ import annotations
 
+import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 import cv2
@@ -14,8 +16,16 @@ class ScreenCapture:
     def __init__(self, region: Optional[tuple[int, int, int, int]] = None, fps: float = 20.0) -> None:
         try:
             import mss
-        except ImportError as exc:
-            raise RuntimeError("Screen capture requires mss. Install it with: pip install mss") from exc
+        except ImportError:
+            # Fallback to local virtual environments if not installed globally
+            for venv_name in [".venv-1", ".venv"]:
+                pkg_dir = Path(__file__).resolve().parent / venv_name / "Lib" / "site-packages"
+                if pkg_dir.exists() and str(pkg_dir) not in sys.path:
+                    sys.path.insert(0, str(pkg_dir))
+            try:
+                import mss
+            except ImportError as exc:
+                raise RuntimeError("Screen capture requires mss. Install it with: pip install mss") from exc
 
         self._sct = mss.mss()
         monitor = self._sct.monitors[1]
@@ -48,4 +58,5 @@ class ScreenCapture:
         return 0.0
 
     def release(self) -> None:
-        self._sct.close()
+        if hasattr(self, "_sct") and self._sct is not None:
+            self._sct.close()

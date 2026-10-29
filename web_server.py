@@ -1,4 +1,4 @@
-"""Minimalist modern web frontend and API server for StripeGuard AI."""
+"""Minimalist modern white-theme web frontend and API server for Zebra Line Encroachment Penalty System."""
 from __future__ import annotations
 
 import csv
@@ -31,6 +31,7 @@ except Exception:
 
 LOGGER = logging.getLogger("stripeguard.web")
 
+
 # Global thread-safe state container
 class DashboardState:
     def __init__(self) -> None:
@@ -41,7 +42,7 @@ class DashboardState:
         self.violation_count: int = 0
         self.fps: float = 0.0
         self.source_fps: float = 0.0
-        self.signal_mode: str = "auto"  # 'auto' or 'manual'
+        self.signal_mode: str = "auto"
         self.manual_signal: str = "RED"
         self.recent_violations: list[dict[str, Any]] = []
         self.start_time: float = time.time()
@@ -130,27 +131,39 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StripeGuard AI &mdash; Intelligent Traffic Enforcement</title>
+  <title>Zebra Line Encroachment Penalty System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #080c14;
-      --card-bg: rgba(255, 255, 255, 0.035);
-      --card-border: rgba(255, 255, 255, 0.07);
-      --card-hover: rgba(255, 255, 255, 0.06);
-      --text-main: #f1f5f9;
-      --text-muted: #94a3b8;
-      --accent: #3b82f6;
-      --danger: #ef4444;
-      --success: #10b981;
-      --warning: #f59e0b;
-      --radius: 18px;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-subtle: #f1f5f9;
+      --border: #e2e8f0;
+      --border-subtle: #edf2f7;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --success: #16a34a;
+      --success-bg: #f0fdf4;
+      --warning: #d97706;
+      --warning-bg: #fffbeb;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 10px;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 20px -2px rgba(15, 23, 42, 0.06);
+      --shadow-lg: 0 12px 32px -4px rgba(15, 23, 42, 0.08);
     }
 
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     body {
@@ -160,70 +173,60 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
-
-    /* Ambient background glow */
-    .glow-sphere {
-      position: fixed;
-      width: 450px;
-      height: 450px;
-      border-radius: 50%;
-      filter: blur(140px);
-      pointer-events: none;
-      z-index: 0;
-      opacity: 0.15;
-      transition: background-color 0.8s ease, transform 0.8s ease;
-    }
-    .glow-left { top: -100px; left: -100px; background-color: var(--accent); }
-    .glow-right { bottom: -100px; right: -100px; background-color: var(--danger); }
 
     /* Top Navigation Header */
     header {
       position: sticky;
       top: 0;
       z-index: 50;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      background: rgba(8, 12, 20, 0.75);
-      border-bottom: 1px solid var(--card-border);
-      padding: 14px 28px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 36px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      box-shadow: var(--shadow-sm);
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
       text-decoration: none;
       color: inherit;
     }
-    .brand-logo {
-      width: 34px;
-      height: 34px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-sm);
+      background: #0f172a;
+      color: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+      box-shadow: var(--shadow-sm);
+      flex-shrink: 0;
     }
-    .brand-logo svg {
-      width: 20px;
-      height: 20px;
+    .brand-icon svg {
+      width: 22px;
+      height: 22px;
       stroke: #ffffff;
       stroke-width: 2.2;
     }
     .brand-text h1 {
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      color: var(--text-main);
     }
     .brand-text p {
-      font-size: 11px;
+      font-size: 12px;
       color: var(--text-muted);
-      letter-spacing: 0.2px;
+      font-weight: 500;
     }
 
     /* Status Pills in Header */
@@ -236,74 +239,75 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 14px;
+      padding: 8px 16px;
       border-radius: 9999px;
       font-size: 12px;
-      font-weight: 600;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      transition: all 0.3s ease;
+      font-weight: 700;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.25s ease;
     }
     .pill-signal {
-      padding: 7px 16px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
+      padding: 8px 18px;
+      letter-spacing: 0.3px;
     }
     .dot {
-      width: 8px;
-      height: 8px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
     }
     .signal-red {
-      color: #fca5a5;
-      border-color: rgba(239, 68, 68, 0.4);
-      background: rgba(239, 68, 68, 0.12);
-      box-shadow: 0 0 16px rgba(239, 68, 68, 0.25);
+      color: var(--danger);
+      background: var(--danger-bg);
+      border-color: #fecaca;
     }
     .signal-red .dot {
       background: var(--danger);
-      box-shadow: 0 0 8px var(--danger);
       animation: pulse 1.4s infinite;
     }
     .signal-green {
-      color: #86efac;
-      border-color: rgba(16, 185, 129, 0.4);
-      background: rgba(16, 185, 129, 0.12);
-      box-shadow: 0 0 16px rgba(16, 185, 129, 0.25);
+      color: var(--success);
+      background: var(--success-bg);
+      border-color: #bbf7d0;
     }
     .signal-green .dot {
       background: var(--success);
-      box-shadow: 0 0 8px var(--success);
     }
     .signal-yellow {
-      color: #fde047;
-      border-color: rgba(245, 158, 11, 0.4);
-      background: rgba(245, 158, 11, 0.12);
+      color: var(--warning);
+      background: var(--warning-bg);
+      border-color: #fef08a;
     }
-    .signal-yellow .dot { background: var(--warning); }
+    .signal-yellow .dot {
+      background: var(--warning);
+    }
 
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
+      50% { opacity: 0.35; transform: scale(0.85); }
     }
 
     /* Main Dashboard Layout */
     main {
-      position: relative;
-      z-index: 10;
       flex: 1;
-      padding: 24px 28px;
+      padding: 28px 36px;
       display: grid;
-      grid-template-columns: 1fr 410px;
-      gap: 24px;
-      max-width: 1780px;
+      grid-template-columns: 1fr 440px;
+      gap: 28px;
+      max-width: 1720px;
       margin: 0 auto;
       width: 100%;
     }
 
-    @media (max-width: 1100px) {
+    @media (max-width: 1180px) {
       main {
         grid-template-columns: 1fr;
+        padding: 20px;
+      }
+      header {
+        padding: 14px 20px;
       }
     }
 
@@ -311,16 +315,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     .stream-section {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 18px;
     }
 
     .video-card {
       position: relative;
-      background: #000000;
-      border-radius: var(--radius);
-      border: 1px solid var(--card-border);
+      background: #020617;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
       overflow: hidden;
-      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+      box-shadow: var(--shadow-lg);
       aspect-ratio: 16 / 9;
       display: flex;
       align-items: center;
@@ -337,9 +341,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     /* Stream Overlays */
     .stream-overlay-top {
       position: absolute;
-      top: 14px;
-      left: 14px;
-      right: 14px;
+      top: 16px;
+      left: 16px;
+      right: 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -348,79 +352,75 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     .overlay-badge {
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
-      background: rgba(0, 0, 0, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      padding: 5px 12px;
-      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 6px 14px;
+      border-radius: 9999px;
       font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.4px;
-      color: #e2e8f0;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #f8fafc;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
     .rec-indicator {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #ef4444;
+      background: var(--danger);
       animation: pulse 1.2s infinite;
     }
 
-    /* Stream Controls Bar */
-    .controls-bar {
+    /* Autonomous Mode Status Bar (No force switches!) */
+    .mode-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius);
-      padding: 12px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 24px;
+      box-shadow: var(--shadow-sm);
     }
 
-    .btn-group {
+    .mode-indicator {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .mode-badge {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid #bbf7d0;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
     }
 
-    .btn {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--card-border);
+    .btn-export {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
       color: var(--text-main);
-      padding: 8px 16px;
-      border-radius: 10px;
-      font-size: 12px;
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
       font-weight: 600;
+      text-decoration: none;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 8px;
       transition: all 0.2s ease;
     }
-    .btn:hover {
-      background: var(--card-hover);
-      border-color: rgba(255, 255, 255, 0.16);
+    .btn-export:hover {
+      background: #e2e8f0;
       transform: translateY(-1px);
-    }
-    .btn-active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #ffffff;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
-    }
-    .btn-danger-active {
-      background: var(--danger);
-      border-color: var(--danger);
-      color: #ffffff;
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
-    }
-    .btn-success-active {
-      background: var(--success);
-      border-color: var(--success);
-      color: #ffffff;
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
     }
 
     /* Right: Violation Photo Feed */
@@ -438,21 +438,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       padding: 0 4px;
     }
     .panel-title {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: -0.2px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .count-chip {
-      font-size: 11px;
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-weight: 700;
+      font-size: 12px;
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #fecaca;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-weight: 800;
     }
 
     .feed-container {
@@ -460,66 +460,66 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding-right: 4px;
+      gap: 14px;
+      padding-right: 6px;
     }
 
-    /* Modern scrollbar */
+    /* Clean custom scrollbar */
     .feed-container::-webkit-scrollbar {
-      width: 5px;
+      width: 6px;
     }
     .feed-container::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
+      background: #cbd5e1;
       border-radius: 10px;
     }
 
     .violation-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
       display: flex;
-      gap: 14px;
+      gap: 16px;
       align-items: center;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.2s ease;
       cursor: pointer;
+      box-shadow: var(--shadow-sm);
       position: relative;
     }
     .violation-card:hover {
-      background: var(--card-hover);
-      border-color: rgba(239, 68, 68, 0.3);
-      transform: translateX(-3px);
-      box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.5);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: #cbd5e1;
     }
     .violation-card::before {
       content: "";
       position: absolute;
       left: 0;
-      top: 12px;
-      bottom: 12px;
-      width: 3px;
+      top: 14px;
+      bottom: 14px;
+      width: 4px;
       border-radius: 0 4px 4px 0;
       background: var(--danger);
     }
 
     .thumb-wrapper {
-      width: 82px;
-      height: 62px;
-      border-radius: 8px;
+      width: 88px;
+      height: 68px;
+      border-radius: var(--radius-sm);
       overflow: hidden;
-      background: #111827;
+      background: #0f172a;
       flex-shrink: 0;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
     }
     .thumb-wrapper img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
-      transition: transform 0.3s ease;
+      transition: transform 0.25s ease;
     }
     .violation-card:hover .thumb-wrapper img {
-      transform: scale(1.08);
+      transform: scale(1.06);
     }
 
     .violation-info {
@@ -530,144 +530,170 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
     }
     .vehicle-tag {
-      font-size: 13px;
-      font-weight: 700;
-      color: #f1f5f9;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-main);
     }
     .time-stamp {
-      font-size: 11px;
+      font-size: 12px;
       color: var(--text-muted);
+      font-weight: 500;
     }
     .plate-badge {
       display: inline-block;
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       font-family: monospace, sans-serif;
-      padding: 3px 8px;
+      padding: 4px 9px;
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #38bdf8;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: var(--accent);
       letter-spacing: 0.5px;
     }
 
     .empty-state {
-      padding: 40px 20px;
+      padding: 48px 24px;
       text-align: center;
       color: var(--text-muted);
       font-size: 13px;
-      border: 1px dashed var(--card-border);
-      border-radius: var(--radius);
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-md);
+      font-weight: 500;
     }
 
-    /* Fullscreen Modal / Lightbox for Violation Evidence */
+    /* Modal / Lightbox for Evidence */
     .modal {
       display: none;
       position: fixed;
       inset: 0;
       z-index: 100;
-      background: rgba(4, 6, 12, 0.85);
-      backdrop-filter: blur(16px);
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       align-items: center;
       justify-content: center;
       padding: 24px;
     }
     .modal-content {
-      background: #0f172a;
-      border: 1px solid var(--card-border);
-      border-radius: 20px;
-      max-width: 680px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      max-width: 660px;
       width: 100%;
       overflow: hidden;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
-      animation: modalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+      animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     @keyframes modalIn {
-      from { opacity: 0; transform: scale(0.95); }
+      from { opacity: 0; transform: scale(0.96); }
       to { opacity: 1; transform: scale(1); }
     }
     .modal-img-container {
       width: 100%;
-      max-height: 400px;
-      background: #000000;
+      max-height: 380px;
+      background: #020617;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .modal-img-container img {
       max-width: 100%;
-      max-height: 400px;
+      max-height: 380px;
       object-fit: contain;
     }
     .modal-body {
-      padding: 20px 24px;
+      padding: 22px 26px;
     }
     .modal-footer {
-      padding: 14px 24px;
-      border-top: 1px solid var(--card-border);
+      padding: 16px 26px;
+      border-top: 1px solid var(--border);
       display: flex;
       justify-content: flex-end;
       gap: 12px;
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--surface-subtle);
+    }
+    .btn-close {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-download {
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      color: #ffffff;
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
     }
 
-    /* Sound alert notification icon */
     .sound-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
+      width: 38px;
+      height: 38px;
+      border-radius: 9999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
       color: var(--text-muted);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: var(--shadow-sm);
       transition: all 0.2s;
     }
-    .sound-btn:hover { color: var(--text-main); }
+    .sound-btn:hover {
+      color: var(--text-main);
+      border-color: #cbd5e1;
+    }
   </style>
 </head>
 <body>
-  <div class="glow-sphere glow-left"></div>
-  <div class="glow-sphere glow-right"></div>
 
-  <!-- Header -->
+  <!-- Top Navigation Header -->
   <header>
     <a href="/" class="brand">
-      <div class="brand-logo">
+      <div class="brand-icon">
         <svg viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
       <div class="brand-text">
-        <h1>StripeGuard AI</h1>
-        <p>Real-Time Zebra Line Enforcement System</p>
+        <h1>Zebra Line Encroachment Penalty System</h1>
+        <p>Automated Real-Time Traffic Violation &amp; ANPR Monitoring</p>
       </div>
     </a>
 
-    <!-- Top Status Pills -->
+    <!-- Status Pills -->
     <div class="status-group">
       <div id="signalPill" class="pill pill-signal signal-green">
         <span class="dot"></span>
         <span id="signalText">GREEN LIGHT</span>
       </div>
       <div class="pill">
-        <span style="color:var(--accent);">&#128663;</span>
+        <span style="color:var(--accent); font-size:14px;">&#128663;</span>
         <span id="trackedText">0 Tracked</span>
       </div>
       <div class="pill">
-        <span style="color:var(--danger);">&#9888;</span>
+        <span style="color:var(--danger); font-size:14px;">&#9888;</span>
         <span id="violationCountPill">0 Violations</span>
       </div>
       <div class="pill">
-        <span style="color:#a855f7;">&#9889;</span>
+        <span style="color:#7c3aed; font-size:14px;">&#9889;</span>
         <span id="fpsText">0.0 FPS</span>
       </div>
-      <button id="soundToggle" class="sound-btn" title="Toggle audio siren">
+      <button id="soundToggle" class="sound-btn" title="Toggle audio chime">
         <svg id="soundIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M11 5L6 9H2v6h4l5 4V5z"/>
           <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/>
@@ -681,38 +707,35 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- Stream Column -->
     <section class="stream-section">
       <div class="video-card">
-        <img id="liveFeed" src="/video_feed" alt="Live Traffic Stream" onerror="this.onerror=null; this.src=''; document.getElementById('offlineNotice').style.display='flex';" />
+        <img id="liveFeed" src="/video_feed" alt="Live Surveillance Stream" onerror="this.onerror=null; this.src=''; document.getElementById('offlineNotice').style.display='flex';" />
         
-        <!-- Live HUD Overlays -->
         <div class="stream-overlay-top">
           <div class="overlay-badge">
             <span class="rec-indicator"></span>
-            LIVE ENFORCEMENT FEED
+            LIVE ENFORCEMENT CAMERA
           </div>
-          <div id="streamResolution" class="overlay-badge">1080p | TensorRT GPU</div>
+          <div id="streamResolution" class="overlay-badge">1080p | Real-Time Inference</div>
         </div>
 
-        <div id="offlineNotice" style="display:none; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; gap:8px; color:var(--text-muted); font-size:13px; background:#080c14;">
+        <div id="offlineNotice" style="display:none; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; gap:8px; color:var(--text-muted); font-size:13px; background:#0f172a;">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M15 10l5 5m0-5l-5 5M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"/>
           </svg>
-          Connecting to StripeGuard Inference Engine...
+          Awaiting video feed from StripeGuard Inference Engine...
         </div>
       </div>
 
-      <!-- Quick Controls -->
-      <div class="controls-bar">
-        <span style="font-size:12px; color:var(--text-muted); font-weight:600;">SIGNAL OVERRIDE</span>
-        <div class="btn-group">
-          <button id="btnAuto" class="btn btn-active" onclick="setSignalMode('auto')">Auto Detect</button>
-          <button id="btnRed" class="btn" onclick="setSignalMode('manual', 'RED')">Force RED</button>
-          <button id="btnGreen" class="btn" onclick="setSignalMode('manual', 'GREEN')">Force GREEN</button>
+      <!-- Autonomous Status Bar (No force switches!) -->
+      <div class="mode-bar">
+        <div class="mode-indicator">
+          <span class="mode-badge">AUTONOMOUS</span>
+          <span>Automatic Zebra Crossing Violation Detection Active</span>
         </div>
-        <a href="/api/export_csv" download="violations.csv" class="btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <a href="/api/export_csv" download="violations.csv" class="btn-export">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
           </svg>
-          Export CSV
+          Export CSV Audit Log
         </a>
       </div>
     </section>
@@ -721,14 +744,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <aside class="violation-section">
       <div class="panel-header">
         <div class="panel-title">
-          <span>Violation Evidence Stream</span>
+          <span>Violation Evidence Log</span>
           <span id="violationCounterChip" class="count-chip">0</span>
         </div>
-        <span style="font-size:11px; color:var(--text-muted);">Real-Time Photo Log</span>
+        <span style="font-size:12px; color:var(--text-muted); font-weight:500;">Real-Time Capture</span>
       </div>
 
       <div id="violationFeed" class="feed-container">
-        <div class="empty-state">No violations recorded yet.<br>Listening for zebra line incursions...</div>
+        <div class="empty-state">No violations recorded.<br>Monitoring pedestrian zebra zone...</div>
       </div>
     </aside>
   </main>
@@ -740,28 +763,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <img id="modalImg" src="" alt="Violation Snapshot" />
       </div>
       <div class="modal-body">
-        <div id="modalPlateImgContainer" style="display:none; margin-bottom:14px; background:rgba(0,0,0,0.5); padding:10px; border-radius:12px; border:1px solid var(--card-border); text-align:center;">
+        <div id="modalPlateImgContainer" style="display:none; margin-bottom:16px; background:#f8fafc; padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border); text-align:center;">
           <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px; letter-spacing:0.5px; font-weight:700;">ENHANCED LICENSE PLATE CROP</div>
           <img id="modalPlateImg" src="" style="max-height:85px; max-width:100%; object-fit:contain; border-radius:6px;" alt="Enhanced Plate" />
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <h2 id="modalTitle" style="font-size:18px; font-weight:700;">Vehicle #ID-0</h2>
-          <span id="modalTime" style="font-size:12px; color:var(--text-muted);">--:--:--</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <h2 id="modalTitle" style="font-size:18px; font-weight:800; color:var(--text-main);">Vehicle #ID-0</h2>
+          <span id="modalTime" style="font-size:13px; color:var(--text-muted); font-weight:500;">--:--:--</span>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:12px;">
-          <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:10px; border:1px solid var(--card-border);">
-            <div style="color:var(--text-muted); margin-bottom:4px;">License Plate (ANPR)</div>
-            <div id="modalPlate" style="font-size:14px; font-weight:700; color:#38bdf8; font-family:monospace;">UNKNOWN</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:12px;">
+          <div style="background:var(--surface-subtle); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <div style="color:var(--text-muted); margin-bottom:4px; font-weight:600;">License Plate (ANPR)</div>
+            <div id="modalPlate" style="font-size:15px; font-weight:800; color:var(--accent); font-family:monospace;">UNKNOWN</div>
           </div>
-          <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:10px; border:1px solid var(--card-border);">
-            <div style="color:var(--text-muted); margin-bottom:4px;">OCR Confidence</div>
-            <div id="modalConfidence" style="font-size:14px; font-weight:700; color:#10b981;">0.0%</div>
+          <div style="background:var(--surface-subtle); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <div style="color:var(--text-muted); margin-bottom:4px; font-weight:600;">OCR Confidence</div>
+            <div id="modalConfidence" style="font-size:15px; font-weight:800; color:var(--success);">0.0%</div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="document.getElementById('evidenceModal').style.display='none'">Close</button>
-        <a id="modalDownload" href="#" download class="btn btn-active">Download Evidence JPG</a>
+        <button class="btn-close" onclick="document.getElementById('evidenceModal').style.display='none'">Close</button>
+        <a id="modalDownload" href="#" download class="btn-download">Download Evidence JPG</a>
       </div>
     </div>
   </div>
@@ -780,7 +803,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         osc.type = 'sine';
         osc.frequency.setValueAtTime(880, audioCtx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.25);
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
@@ -813,12 +836,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('violationCountPill').innerText = data.violation_count + ' Violations';
         document.getElementById('fpsText').innerText = data.fps.toFixed(1) + ' FPS';
 
-        // Update Controls Highlighting
-        const isAuto = data.signal_mode === 'auto';
-        document.getElementById('btnAuto').className = 'btn ' + (isAuto ? 'btn-active' : '');
-        document.getElementById('btnRed').className = 'btn ' + (!isAuto && data.manual_signal === 'RED' ? 'btn-danger-active' : '');
-        document.getElementById('btnGreen').className = 'btn ' + (!isAuto && data.manual_signal === 'GREEN' ? 'btn-success-active' : '');
-
       } catch (err) {
         console.warn('Status poll error', err);
       }
@@ -839,7 +856,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         lastViolationCount = list.length;
 
         if (list.length === 0) {
-          feed.innerHTML = '<div class="empty-state">No violations recorded yet.<br>Listening for zebra line incursions...</div>';
+          feed.innerHTML = '<div class="empty-state">No violations recorded.<br>Monitoring pedestrian zebra zone...</div>';
           return;
         }
 
@@ -855,7 +872,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           html += `
             <div class="violation-card" onclick="openModal('${cleanPath}', '${id}', '${time}', '${plate}', '${conf}', '${cleanPlatePath}')">
               <div class="thumb-wrapper">
-                <img src="/${cleanPath}" alt="ID ${id}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23334155%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2210%22>PHOTO</text></svg>'"/>
+                <img src="/${cleanPath}" alt="ID ${id}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23cbd5e1%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2210%22>PHOTO</text></svg>'"/>
               </div>
               <div class="violation-info">
                 <div class="info-top">
@@ -864,7 +881,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <span class="plate-badge">${plate}</span>
-                  <span style="font-size:11px; color:var(--danger); font-weight:700;">RED ENCROACH</span>
+                  <span style="font-size:11px; color:var(--danger); font-weight:800;">RED ENCROACH</span>
                 </div>
               </div>
             </div>
@@ -873,19 +890,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         feed.innerHTML = html;
       } catch (err) {
         console.warn('Violations poll error', err);
-      }
-    }
-
-    async function setSignalMode(mode, signal = 'RED') {
-      try {
-        await fetch('/api/signal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, signal })
-        });
-        fetchStatus();
-      } catch (e) {
-        console.error('Failed to set signal mode', e);
       }
     }
 
@@ -925,7 +929,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 
 class DashboardHTTPHandler(BaseHTTPRequestHandler):
-    """HTTP Request handler serving the minimalist web dashboard and live stream."""
+    """HTTP Request handler serving the white-theme web dashboard and live stream."""
 
     def log_message(self, format: str, *args: Any) -> None:
         # Suppress noisy HTTP logging in console
@@ -1063,7 +1067,7 @@ class WebDashboard:
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         print(f"\n=======================================================")
-        print(f"  >>> StripeGuard AI Minimalist Frontend Running! <<<")
+        print(f"  >>> Zebra Line Encroachment Penalty System Running! <<<")
         print(f"  Open your browser: http://localhost:{self.port}")
         print(f"=======================================================\n")
 
@@ -1084,7 +1088,7 @@ def start_dashboard(host: str = "0.0.0.0", port: int = 5000) -> WebDashboard:
     return _GLOBAL_DASHBOARD
 
 def update_dashboard(
-    frame: np.ndarray | None,
+    frame: Any,
     signal: str,
     tracked_count: int,
     violation_count: int,
@@ -1101,9 +1105,8 @@ def get_signal_override() -> tuple[str, str]:
 
 
 if __name__ == "__main__":
-    # Test standalone execution
     server = start_dashboard(port=5000)
-    print("Dashboard started in standalone mode with existing violation database. Press Ctrl+C to stop.")
+    print("Dashboard started in standalone mode. Press Ctrl+C to stop.")
     try:
         while True:
             time.sleep(1)

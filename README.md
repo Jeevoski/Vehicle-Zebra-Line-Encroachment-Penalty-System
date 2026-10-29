@@ -57,6 +57,14 @@ The first run downloads the configured YOLO weights and EasyOCR language model. 
 
    Select four zebra-corner points, press Enter, select two signal-ROI corners, then press Enter.
 
+   For ETS2, set the game camera first and select from the monitor instead:
+
+   ```powershell
+   python roi_selector.py --screen
+   ```
+
+   Copy the printed `ZEBRA_ROI` and `SIGNAL_ROIS` snippets into `config.py` before starting screen monitoring.
+
 3. Start monitoring:
 
    ```powershell
@@ -70,6 +78,53 @@ The first run downloads the configured YOLO weights and EasyOCR language model. 
    ```powershell
    python main.py --source data/traffic_sample.mp4 --headless --cpu-ocr --output-video violations/annotated_detection.mp4
    ```
+
+   To ingest the configured Fresno, California YouTube traffic camera directly with a low-latency latest-frame reader:
+
+   ```powershell
+   python main.py --live
+   ```
+
+   The equivalent explicit command is `python main.py --source https://www.youtube.com/live/sTF-6_xinUU`. Streamlink resolves the best available `1080p`, `720p`, or fallback stream, while a background reader drops stale frames so inference stays near live time. Frames are processed and displayed at their native resolution without aspect-ratio scaling. Use `--headless` for a server and `--output-video violations/live_annotated.mp4` when recording annotated output.
+
+   To use Euro Truck Simulator 2 as the camera source, set the in-game camera so the traffic signal, vehicles, and zebra crossing are visible, then capture the primary monitor:
+
+   ```powershell
+   pip install mss
+   python main.py --screen --signal-mode auto --output-video violations/ets2_annotated.mp4
+   ```
+
+   To capture only the game window area, use `--screen-region x,y,width,height`, for example `--screen-region 0,0,1920,1080`. Copy the ROI values from `roi_selector.py` into `config.py` for the captured ETS2 view. Press `q` in the OpenCV window to stop. Screen capture analyses pixels only; it does not read or modify ETS2 game files.
+
+## CARLA simulation
+
+For a small local test that does not require CARLA, use the OpenCV-only synthetic simulator:
+
+```powershell
+python synthetic_simulator.py --duration 30
+```
+
+This creates `data/synthetic_traffic.mp4` and `data/synthetic_rois.json` with a road, zebra crossing, traffic light, moving vehicle shapes, and alternating red/green phases. Copy the ROI values from the JSON file into `config.py`, then replay it through the detector:
+
+```powershell
+python main.py --source data/synthetic_traffic.mp4 --headless --cpu-ocr --output-video violations/synthetic_annotated.mp4
+```
+
+This lightweight scene is suitable for testing ROI scaling, signal detection, video writing, and the end-to-end workflow. Its drawn vehicle shapes are not a substitute for real training data, so use real traffic footage or a labeled dataset to evaluate YOLO accuracy.
+
+The live-camera ROIs are specific to one camera view. For repeatable testing, use the optional CARLA scenario runner. Install and start a CARLA release that matches the Python API available in your environment, then run:
+
+```powershell
+python carla_simulator.py --duration 60 --output data/carla_traffic.mp4 --roi-output data/carla_rois.json
+```
+
+The runner spawns autopilot traffic, records a fixed camera, alternates red and green phases, and overlays a visible zebra crossing and signal panel. It also writes the exact `1280x720` ROIs used by the recording. Replay the result through StripeGuard:
+
+```powershell
+python main.py --source data/carla_traffic.mp4 --headless --cpu-ocr --output-video violations/carla_annotated.mp4
+```
+
+For a first detector check, copy the `zebra_roi` and `signal_rois` values from `data/carla_rois.json` into `config.py`. CARLA is intentionally optional and is not included in `requirements.txt` because its Python package must match the installed CARLA server version.
 
 4. Inspect evidence and logs in `violations/`.
 

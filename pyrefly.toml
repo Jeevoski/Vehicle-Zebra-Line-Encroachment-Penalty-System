@@ -1,0 +1,19 @@
+project-excludes = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.venv*/**/*",
+    "**/venv/**/*",
+]
+python-version = "3.12.0"
+permissive-ignores = true
+
+[errors]
+bad-override = "ignore"
+invalid-variance = "ignore"
+bad-override-param-name = "ignore"
+bad-argument-type = "ignore"
+bad-return = "ignore"
+missing-attribute = "ignore"
+unbound-name = "ignore"
+unnecessary-type-conversion = "ignore"
+

@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv*/
 venv/
 env/
 .idea/
@@ -9,6 +10,8 @@ env/
 *.onnx
 *.mp4
 *.avi
+data/*_traffic.mp4
+data/*_rois.json
 violations/*.jpg
 violations/*.json
 violations/*.csv

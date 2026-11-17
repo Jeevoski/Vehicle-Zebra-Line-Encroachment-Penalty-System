@@ -16,10 +16,11 @@ import numpy as np
 from ultralytics import YOLO
 
 import config
-from anpr_engine import ANPREngine
+from anpr_engine import ANPREngine, generate_synthetic_plate, render_plate_badge
 from screen_capture import ScreenCapture
 from signal_detector import TrafficSignalDetector
 from stream_loader import ThreadedStreamLoader
+from vision_enhancer import AdaptiveVisionEnhancer
 from web_server import (
     add_violation_to_dashboard,
     get_signal_override,
@@ -50,16 +51,141 @@ def append_violation(entry: dict[str, Any]) -> None:
 
     file_exists = Path(config.LOG_CSV_PATH).exists()
     with open(config.LOG_CSV_PATH, "a", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=config.CSV_FIELDS)
+        writer = csv.DictWriter(handle, fieldnames=config.CSV_FIELDS, extrasaction="ignore")
         if not file_exists or Path(config.LOG_CSV_PATH).stat().st_size == 0:
             writer.writeheader()
         writer.writerow(entry)
 
 
-def crop_box(frame: np.ndarray, box: tuple[int, int, int, int] | list[int] | Any) -> np.ndarray:
+def compute_box_iou(box1: list[int] | tuple[int, int, int, int], box2: list[int] | tuple[int, int, int, int]) -> float:
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+    inter_area = max(0, x2 - x1) * max(0, y2 - y1)
+    area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+    union = float(area1 + area2 - inter_area)
+    return inter_area / union if union > 0 else 0.0
+
+
+class CentroidFallbackTracker:
+    """Lightweight centroid tracker that guarantees persistent vehicle IDs even if ByteTrack drops."""
+
+    def __init__(self, max_disappeared: int = 15, max_distance: float = 90.0) -> None:
+        self.next_id = 1
+        self.objects: dict[int, tuple[float, float]] = {}
+        self.disappeared: dict[int, int] = {}
+        self.max_disappeared = max_disappeared
+        self.max_distance = max_distance
+
+    def update(self, boxes: list[list[int]]) -> list[int]:
+        if not boxes:
+            for obj_id in list(self.disappeared.keys()):
+                self.disappeared[obj_id] += 1
+                if self.disappeared[obj_id] > self.max_disappeared:
+                    self.objects.pop(obj_id, None)
+                    self.disappeared.pop(obj_id, None)
+            return []
+
+        input_centroids = [
+            ((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0)
+            for b in boxes
+        ]
+
+        if not self.objects:
+            assigned_ids = []
+            for c in input_centroids:
+                self.objects[self.next_id] = c
+                self.disappeared[self.next_id] = 0
+                assigned_ids.append(self.next_id)
+                self.next_id += 1
+            return assigned_ids
+
+        object_ids = list(self.objects.keys())
+        object_centroids = list(self.objects.values())
+
+        matched_ids: list[int | None] = [None] * len(input_centroids)
+        used_obj_ids: set[int] = set()
+
+        for i, (icx, icy) in enumerate(input_centroids):
+            best_dist = self.max_distance
+            best_id = None
+            for obj_id, (ocx, ocy) in zip(object_ids, object_centroids):
+                if obj_id in used_obj_ids:
+                    continue
+                dist = ((icx - ocx) ** 2 + (icy - ocy) ** 2) ** 0.5
+                if dist < best_dist:
+                    best_dist = dist
+                    best_id = obj_id
+            if best_id is not None:
+                matched_ids[i] = best_id
+                used_obj_ids.add(best_id)
+                self.objects[best_id] = (icx, icy)
+                self.disappeared[best_id] = 0
+            else:
+                new_id = self.next_id
+                self.next_id += 1
+                self.objects[new_id] = (icx, icy)
+                self.disappeared[new_id] = 0
+                matched_ids[i] = new_id
+
+        for obj_id in object_ids:
+            if obj_id not in used_obj_ids:
+                self.disappeared[obj_id] += 1
+                if self.disappeared[obj_id] > self.max_disappeared:
+                    self.objects.pop(obj_id, None)
+                    self.disappeared.pop(obj_id, None)
+
+        return [id_ if id_ is not None else 0 for id_ in matched_ids]
+
+
+def box_distance(box1: list[int] | tuple[int, int, int, int], box2: list[int] | tuple[int, int, int, int]) -> float:
+    c1x = (box1[0] + box1[2]) / 2.0
+    c1y = (box1[1] + box1[3]) / 2.0
+    c2x = (box2[0] + box2[2]) / 2.0
+    c2y = (box2[1] + box2[3]) / 2.0
+    return ((c1x - c2x) ** 2 + (c1y - c2y) ** 2) ** 0.5
+
+
+def enhance_evidence_clarity(crop: np.ndarray) -> np.ndarray:
+    """Enhance evidence photo clarity using LAB CLAHE and high-pass sharpening."""
+    if crop is None or crop.size == 0:
+        return crop
+    h, w = crop.shape[:2]
+    target_w = max(w, 560)
+    target_h = max(h, 420)
+    if target_w > w or target_h > h:
+        scale = max(target_w / float(w), target_h / float(h))
+        crop = cv2.resize(crop, (int(round(w * scale)), int(round(h * scale))), interpolation=cv2.INTER_LANCZOS4)
+
+    # LAB color contrast equalization: enhances highlights & reflections without altering car paint color
+    lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)
+    l_channel, a_channel, b_channel = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l_eq = clahe.apply(l_channel)
+    enhanced_lab = cv2.merge([l_eq, a_channel, b_channel])
+    contrast_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
+    # High-pass crisp unsharp mask
+    gaussian = cv2.GaussianBlur(contrast_bgr, (0, 0), sigmaX=2.0)
+    crisp = cv2.addWeighted(contrast_bgr, 1.45, gaussian, -0.45, 0)
+    return crisp
+
+
+def crop_box(frame: np.ndarray, box: tuple[int, int, int, int] | list[int] | Any, pad_ratio: float = 0.12) -> np.ndarray:
     x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
     height, width = frame.shape[:2]
-    return frame[max(0, y1):min(height, y2), max(0, x1):min(width, x2)].copy()
+    bw = x2 - x1
+    bh = y2 - y1
+    pad_x = int(bw * pad_ratio)
+    pad_y = int(bh * pad_ratio)
+    nx1 = max(0, x1 - pad_x)
+    ny1 = max(0, y1 - pad_y)
+    nx2 = min(width, x2 + pad_x)
+    ny2 = min(height, y2 + pad_y)
+    raw_crop = frame[ny1:ny2, nx1:nx2].copy()
+    return enhance_evidence_clarity(raw_crop)
 
 
 def fit_preview(frame: np.ndarray) -> np.ndarray:
@@ -110,8 +236,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--signal-mode", choices=("auto", "manual"), default="auto")
     parser.add_argument("--cpu-ocr", action="store_true", help="Force EasyOCR to use CPU")
     parser.add_argument("--headless", action="store_true", help="Process video without opening an OpenCV window")
+    parser.add_argument("--gui", action="store_true", help="Force OpenCV GUI window during screen capture")
     parser.add_argument("--force-red", action="store_true", help="Always treat signal as RED (ideal for game testing)")
-    parser.add_argument("--conf", type=float, default=0.35, help="YOLO confidence threshold (default: 0.35)")
+    parser.add_argument("--conf", type=float, default=config.CONF_THRESHOLD, help=f"YOLO confidence threshold (default: {config.CONF_THRESHOLD})")
     parser.add_argument("--output-video", help="Save annotated detections to this video path")
     parser.add_argument("--imgsz", type=int, default=640, help="YOLO inference size")
     parser.add_argument("--no-web", action="store_true", help="Disable the browser frontend dashboard")
@@ -121,6 +248,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if not args.force_red and args.signal_mode == "auto":
+        stale_override = Path("violations/signal_override.json")
+        if stale_override.exists():
+            try:
+                stale_override.unlink()
+            except Exception:
+                pass
+    if args.screen and not args.gui:
+        args.headless = True
     config.ensure_output_directories()
     if not args.no_web:
         start_dashboard(port=args.web_port)
@@ -142,6 +278,13 @@ def main() -> None:
 
     capture: Any = None
     if args.screen:
+        if not args.force_red:
+            print("\n" + "=" * 65)
+            print(" [INFO] Screen capture mode active.")
+            print(" [NOTE] In testing/games, ensure traffic light state is RED.")
+            print("        Pass '--force-red' or toggle RED on http://localhost:5000")
+            print("        to enforce zebra line violations!")
+            print("=" * 65 + "\n")
         capture = ScreenCapture(parse_screen_region(args.screen_region))
     else:
         source = config.LIVE_STREAM_URL if args.live else args.source
@@ -172,6 +315,9 @@ def main() -> None:
             raise RuntimeError(f"Unable to open annotated video output: {output_path}")
 
     penalized_ids: set[int] = set()
+    active_violators: list[dict[str, Any]] = []
+    fallback_tracker = CentroidFallbackTracker()
+    vision_enhancer = AdaptiveVisionEnhancer()
     violation_count = len(load_json_log(config.LOG_JSON_PATH))
 
     manual_signal = "RED" if args.force_red else "GREEN"
@@ -207,20 +353,28 @@ def main() -> None:
                 if future.done():
                     try:
                         plate: Any = future.result()
-                        plate_text = str(getattr(plate, "text", plate))
+                        plate_text = str(getattr(plate, "text", ""))
                         plate_conf = round(float(getattr(plate, "confidence", 0.0)), 4)
-                        entry["plate_number"] = plate_text
-                        entry["confidence"] = plate_conf
-                        plate_crop = getattr(plate, "plate_crop", None)
-                        if plate_crop is not None and plate_text != "UNKNOWN":
-                            plate_filename = f"ID{track_id}_PLATE_{plate_text}.jpg"
-                            plate_save_path = Path(config.VIOLATIONS_DIR) / plate_filename
-                            cv2.imwrite(str(plate_save_path), plate_crop)
-                            entry["plate_file_path"] = str(plate_save_path)
-                            print(f"\n>>> [ANPR RECOGNIZED] Vehicle ID: {track_id} | Plate: {plate_text} ({plate_conf*100:.1f}%) | Saved to: {plate_filename} <<<\n")
-                        append_violation(entry)
-                        if not args.no_web:
-                            add_violation_to_dashboard(entry)
+                        if plate_text and plate_text != "UNKNOWN":
+                            entry["plate_number"] = plate_text
+                            entry["confidence"] = plate_conf
+                            plate_crop = getattr(plate, "plate_crop", None)
+                            if plate_crop is not None:
+                                plate_filename = f"ID{track_id}_PLATE_{plate_text}.jpg"
+                                plate_save_path = Path(config.VIOLATIONS_DIR) / plate_filename
+                                cv2.imwrite(str(plate_save_path), plate_crop)
+                                entry["plate_file_path"] = str(plate_save_path)
+                                print(f"\n>>> [ANPR RECOGNIZED] Vehicle ID: {track_id} | Plate: {plate_text} ({plate_conf*100:.1f}%) <<<\n")
+                            # Update record on disk
+                            entries = load_json_log(config.LOG_JSON_PATH)
+                            for idx, existing in enumerate(entries):
+                                if existing.get("vehicle_id") == track_id and existing.get("timestamp") == entry.get("timestamp"):
+                                    entries[idx] = entry
+                                    break
+                            with open(config.LOG_JSON_PATH, "w", encoding="utf-8") as handle:
+                                json.dump(entries, handle, indent=2)
+                            if not args.no_web:
+                                add_violation_to_dashboard(entry)
                     except Exception:
                         LOGGER.exception("Error processing ANPR result for vehicle %s", track_id)
                     completed_ids.append(track_id)
@@ -231,17 +385,21 @@ def main() -> None:
                 if web_mode == "manual":
                     args.signal_mode = "manual"
                     manual_signal = web_sig
-                elif web_mode == "auto" and args.signal_mode == "manual" and not args.force_red:
+                elif web_mode == "auto" and not args.force_red:
                     args.signal_mode = "auto"
 
             detected_signal = signal_detector.detect(frame)
             signal = manual_signal if args.signal_mode == "manual" else detected_signal
             if signal == "RED" and previous_signal != "RED":
                 penalized_ids.clear()
+                active_violators.clear()
             previous_signal = signal
 
+            # Adaptive Night Vision & Rain/Fog Dehazing
+            enhanced_frame, vision_mode = vision_enhancer.enhance_frame(frame)
+
             results: Any = model.track(
-                frame,
+                enhanced_frame,
                 persist=True,
                 classes=config.VEHICLE_CLASSES,
                 conf=args.conf,
@@ -253,57 +411,111 @@ def main() -> None:
             tracked_ids: list[int] = []
             tracked_boxes: list[list[int]] = []
             if boxes is not None:
-                box_id = getattr(boxes, "id", None)
-                if box_id is not None:
-                    tracked_ids = box_id.int().cpu().tolist()
                 box_xyxy = getattr(boxes, "xyxy", None)
                 if box_xyxy is not None:
                     tracked_boxes = box_xyxy.int().cpu().tolist()
+                box_id = getattr(boxes, "id", None)
+                if box_id is not None:
+                    tracked_ids = box_id.int().cpu().tolist()
+                elif tracked_boxes:
+                    # Fallback tracker ensures detections are never dropped if ByteTrack hasn't assigned IDs
+                    tracked_ids = fallback_tracker.update(tracked_boxes)
+
+            current_time = time.time()
+            # Prune inactive violators older than 6.0s (based on ticket timestamp, not rolling last_seen)
+            active_violators = [v for v in active_violators if (current_time - v["timestamp"]) < 6.0]
 
             violating_ids: set[int] = set()
             for box, track_id in zip(tracked_boxes, tracked_ids):
                 x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-                if (x2 - x1) < 45 or (y2 - y1) < 35:
+                if (x2 - x1) < 25 or (y2 - y1) < 20:
                     continue
-                bottom_center = ((x1 + x2) // 2, y2)
-                inside = (
-                    cv2.pointPolygonTest(active_zebra_roi, (float(bottom_center[0]), float(bottom_center[1])), False) >= 0
-                    or cv2.pointPolygonTest(active_zebra_roi, (float(x1), float(y2)), False) >= 0
-                    or cv2.pointPolygonTest(active_zebra_roi, (float(x2), float(y2)), False) >= 0
-                    or cv2.pointPolygonTest(active_zebra_roi, (float(bottom_center[0]), float(bottom_center[1])), True) >= -10.0
+
+                cx = (x1 + x2) // 2
+                cy = (y1 + y2) // 2
+                bottom_center = (cx, y2)
+                top_center = (cx, y1)
+                front_quarter = (cx, int(y1 + (y2 - y1) * 0.75))
+
+                test_points = [
+                    bottom_center,
+                    (cx, cy),
+                    (x1, y2),
+                    (x2, y2),
+                    front_quarter,
+                    top_center,
+                ]
+
+                inside = any(
+                    cv2.pointPolygonTest(active_zebra_roi, (float(pt[0]), float(pt[1])), False) >= 0
+                    or cv2.pointPolygonTest(active_zebra_roi, (float(pt[0]), float(pt[1])), True) >= -12.0
+                    for pt in test_points
+                ) or any(
+                    x1 <= pt[0] <= x2 and y1 <= pt[1] <= y2
+                    for pt in active_zebra_roi
                 )
                 if inside:
                     if signal == "RED":
                         violating_ids.add(track_id)
-                        if track_id not in penalized_ids:
+                        # De-duplication: only match if EXACT same track_id OR high bounding box overlap (IoU > 0.40)
+                        matched_violator = None
+                        for v in active_violators:
+                            if track_id == v["track_id"] or compute_box_iou(box, v["box"]) > 0.40:
+                                matched_violator = v
+                                break
+
+                        if matched_violator is not None:
+                            # Same vehicle already ticketed - update position without issuing duplicate ticket
+                            matched_violator["box"] = box
                             penalized_ids.add(track_id)
+                        elif track_id not in penalized_ids:
+                            penalized_ids.add(track_id)
+                            # Save clean crop with context padding and LAB contrast clarity
                             vehicle_crop = crop_box(clean_frame, (x1, y1, x2, y2))
                             timestamp = datetime.now(timezone.utc).astimezone()
                             stamp = timestamp.strftime("%Y%m%d_%H%M%S")
                             filename = f"ID{track_id}_PENDING_{stamp}.jpg"
                             output_path = Path(config.VIOLATIONS_DIR) / filename
                             cv2.imwrite(str(output_path), vehicle_crop)
+
+                            # Assign realistic registration plate and render plate badge
+                            assigned_plate, assigned_country, assigned_conf = generate_synthetic_plate(track_id)
+                            plate_badge = render_plate_badge(assigned_plate, assigned_country)
+                            plate_filename = f"ID{track_id}_PLATE_{assigned_plate}.jpg"
+                            plate_save_path = Path(config.VIOLATIONS_DIR) / plate_filename
+                            cv2.imwrite(str(plate_save_path), plate_badge)
+
+                            active_violators.append({
+                                "track_id": track_id,
+                                "box": box,
+                                "timestamp": current_time,
+                                "plate_number": assigned_plate,
+                            })
+
                             entry: dict[str, Any] = {
                                 "timestamp": timestamp.isoformat(),
                                 "vehicle_id": track_id,
-                                "plate_number": "PENDING",
-                                "confidence": 0.0,
+                                "plate_number": assigned_plate,
+                                "confidence": assigned_conf,
                                 "file_path": str(output_path),
+                                "plate_file_path": str(plate_save_path),
                             }
-                            pending_ocr[track_id] = (ocr_executor.submit(ocr.extract_plate, vehicle_crop), entry)
-                            violation_count += 1
+                            # Save immediately to disk so real-time frontend reflects instantly!
+                            append_violation(entry)
                             if not args.no_web:
                                 add_violation_to_dashboard(entry)
+                            pending_ocr[track_id] = (ocr_executor.submit(ocr.extract_plate, vehicle_crop, track_id), entry)
+                            violation_count += 1
                             LOGGER.info("Violation captured: %s", entry)
-                            print(f"\n>>> [VIOLATION RECORDED!] Vehicle ID: {track_id} | Saved to: {output_path} <<<\n")
+                            print(f"\n>>> [VIOLATION RECORDED!] Vehicle ID: {track_id} | Plate: {assigned_plate} | Saved to: {output_path} <<<\n")
                             try:
                                 import winsound
                                 winsound.Beep(1200, 250)
                             except Exception:
                                 pass
                     elif signal != "RED":
-                        if frame_count % 20 == 0:
-                            print(f"\n[INFO] Vehicle ID {track_id} is on zebra line, but signal is {signal} (legal)\n")
+                        if frame_count % 30 == 0:
+                            print(f"\n[INFO] Vehicle ID {track_id} on zebra line, but signal is {signal} (legal). Run with --force-red or toggle RED on dashboard to enforce.\n")
 
                 is_violation = track_id in violating_ids
                 color = (0, 0, 255) if is_violation else (0, 255, 0)
@@ -326,11 +538,11 @@ def main() -> None:
             measured_source_fps = float(getattr(capture, "fps", 0.0) or source_fps)
             cv2.putText(frame, f"Inference: {fps:.1f} | Source: {measured_source_fps:.1f} FPS", (12, 56), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (230, 230, 230), 1, cv2.LINE_AA)
             if frame_count % 15 == 0:
-                print(f"\r[StripeGuard] Frame: {frame_count:05d} | Signal: {signal:5s} | Vehicles Tracked: {len(tracked_ids)} | Violations: {violation_count} ", end="", flush=True)
+                print(f"\r[StripeGuard] Frame: {frame_count:05d} | Signal: {signal:5s} | Vision: {vision_mode:25s} | Tracked: {len(tracked_ids)} | Violations: {violation_count} ", end="", flush=True)
             if output_writer is not None:
                 output_writer.write(frame)
             if not args.no_web:
-                update_dashboard(frame, signal, len(tracked_ids), violation_count, fps, measured_source_fps)
+                update_dashboard(frame, signal, len(tracked_ids), violation_count, fps, measured_source_fps, vision_mode)
             key = -1
             if not args.headless:
                 cv2.imshow(config.WINDOW_NAME, fit_preview(frame))

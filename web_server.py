@@ -42,6 +42,7 @@ class DashboardState:
         self.violation_count: int = 0
         self.fps: float = 0.0
         self.source_fps: float = 0.0
+        self.vision_mode: str = "Clear Vision"
         self.signal_mode: str = "auto"
         self.manual_signal: str = "RED"
         self.recent_violations: list[dict[str, Any]] = []
@@ -55,6 +56,7 @@ class DashboardState:
         violation_count: int,
         fps: float,
         source_fps: float = 0.0,
+        vision_mode: str = "Clear Vision",
     ) -> None:
         jpeg_bytes: bytes | None = None
         if frame is not None:
@@ -72,7 +74,9 @@ class DashboardState:
             self.tracked_count = tracked_count
             self.violation_count = violation_count
             self.fps = round(fps, 1)
+            self.vision_mode = vision_mode
             if source_fps > 0:
+                self.source_fps = round(source_fps, 1)
                 self.source_fps = round(source_fps, 1)
 
     def add_violation(self, entry: dict[str, Any]) -> None:
@@ -92,8 +96,26 @@ class DashboardState:
             self.signal_mode = mode
             if signal in ("RED", "GREEN", "YELLOW"):
                 self.manual_signal = signal
+                self.signal_state = signal
+        try:
+            override_path = Path("violations/signal_override.json")
+            if mode == "auto":
+                if override_path.exists():
+                    override_path.unlink()
+            else:
+                override_path.parent.mkdir(parents=True, exist_ok=True)
+                override_path.write_text(json.dumps({"mode": mode, "signal": signal}), encoding="utf-8")
+        except Exception:
+            pass
 
     def get_signal_override(self) -> tuple[str, str]:
+        try:
+            override_path = Path("violations/signal_override.json")
+            if override_path.exists():
+                data = json.loads(override_path.read_text(encoding="utf-8"))
+                return data.get("mode", "auto"), data.get("signal", "RED")
+        except Exception:
+            pass
         with self.lock:
             return self.signal_mode, self.manual_signal
 
@@ -105,6 +127,7 @@ class DashboardState:
                 "violation_count": self.violation_count,
                 "fps": self.fps,
                 "source_fps": self.source_fps,
+                "vision_mode": self.vision_mode,
                 "signal_mode": self.signal_mode,
                 "manual_signal": self.manual_signal,
                 "uptime_seconds": int(time.time() - self.start_time),
@@ -131,7 +154,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zebra Line Encroachment Penalty System</title>
+  <title>StripeGuard AI | Zebra Line Encroachment Penalty System</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><rect width='48' height='48' rx='12' fill='%230f172a'/><path d='M10 16h28M10 24h28M10 32h28' stroke='white' stroke-width='3.2' stroke-linecap='round'/><circle cx='24' cy='24' r='14' stroke='%2338bdf8' stroke-width='2.4' stroke-dasharray='3 3' fill='none'/><circle cx='24' cy='24' r='4' fill='%23ef4444'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -311,68 +335,109 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
-    /* Left: Live Stream Panel */
-    .stream-section {
+    /* Left: Incident Spotlight & Telemetry Panel */
+    .spotlight-section {
       display: flex;
       flex-direction: column;
       gap: 18px;
     }
 
-    .video-card {
-      position: relative;
-      background: #020617;
+    .spotlight-card {
+      background: var(--surface);
       border-radius: var(--radius-lg);
       border: 1px solid var(--border);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: relative;
+    }
+
+    .spotlight-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .spotlight-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-main);
+    }
+    .spotlight-pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--danger);
+      animation: pulse 1.4s infinite;
+    }
+
+    .spotlight-body {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 22px;
+      align-items: center;
+    }
+
+    @media (max-width: 800px) {
+      .spotlight-body {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .spotlight-img-box {
+      width: 100%;
+      height: 290px;
+      background: #0f172a;
+      border-radius: var(--radius-md);
       overflow: hidden;
-      box-shadow: var(--shadow-lg);
-      aspect-ratio: 16 / 9;
+      border: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
     }
-
-    .video-card img {
+    .spotlight-img-box img {
       width: 100%;
       height: 100%;
       object-fit: contain;
       display: block;
+      image-rendering: -webkit-optimize-contrast;
     }
 
-    /* Stream Overlays */
-    .stream-overlay-top {
-      position: absolute;
-      top: 16px;
-      left: 16px;
-      right: 16px;
+    .spotlight-meta {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      pointer-events: none;
+      flex-direction: column;
+      gap: 12px;
     }
-    .overlay-badge {
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      padding: 6px 14px;
-      border-radius: 9999px;
+
+    .meta-box {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+    }
+    .meta-label {
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.3px;
-      color: #f8fafc;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
     }
-    .rec-indicator {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--danger);
-      animation: pulse 1.2s infinite;
+    .meta-value {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-main);
     }
 
-    /* Autonomous Mode Status Bar (No force switches!) */
+    /* Status Bar */
     .mode-bar {
       display: flex;
       align-items: center;
@@ -382,12 +447,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       border-radius: var(--radius-md);
       padding: 14px 24px;
       box-shadow: var(--shadow-sm);
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
     .mode-indicator {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       font-size: 13px;
       font-weight: 600;
       color: var(--text-main);
@@ -595,16 +662,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
     .modal-img-container {
       width: 100%;
-      max-height: 380px;
+      max-height: 400px;
       background: #020617;
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 10px;
     }
     .modal-img-container img {
       max-width: 100%;
       max-height: 380px;
       object-fit: contain;
+      border-radius: var(--radius-sm);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
     .modal-body {
       padding: 22px 26px;
@@ -665,29 +736,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <header>
     <a href="/" class="brand">
       <div class="brand-icon">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="#0f172a"/>
+          <!-- Road with zebra crossing markings -->
+          <path d="M7 10h18M7 16h18M7 22h18" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/>
+          <!-- AI Surveillance Radar Reticle -->
+          <circle cx="16" cy="16" r="10" stroke="#38bdf8" stroke-width="1.8" stroke-dasharray="2.5 2.5" fill="none"/>
+          <circle cx="16" cy="16" r="3.5" fill="#ef4444"/>
         </svg>
       </div>
       <div class="brand-text">
-        <h1>Zebra Line Encroachment Penalty System</h1>
-        <p>Automated Real-Time Traffic Violation &amp; ANPR Monitoring</p>
+        <h1>StripeGuard AI</h1>
+        <p>Zebra Line Encroachment Penalty System</p>
       </div>
     </a>
 
     <!-- Status Pills -->
     <div class="status-group">
-      <div id="signalPill" class="pill pill-signal signal-green">
-        <span class="dot"></span>
-        <span id="signalText">GREEN LIGHT</span>
-      </div>
-      <div class="pill">
-        <span style="color:var(--accent); font-size:14px;">&#128663;</span>
-        <span id="trackedText">0 Tracked</span>
-      </div>
       <div class="pill">
         <span style="color:var(--danger); font-size:14px;">&#9888;</span>
         <span id="violationCountPill">0 Violations</span>
+      </div>
+      <div class="pill" id="visionPill" style="background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8;" title="Adaptive Night & Adverse Weather Vision Engine">
+        <span id="visionIcon">☀️</span>
+        <span id="visionModeText">Adaptive Vision Active</span>
       </div>
       <div class="pill">
         <span style="color:#7c3aed; font-size:14px;">&#9889;</span>
@@ -704,32 +776,67 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- Main View -->
   <main>
-    <!-- Stream Column -->
-    <section class="stream-section">
-      <div class="video-card">
-        <img id="liveFeed" src="/video_feed" alt="Live Surveillance Stream" onerror="this.onerror=null; this.src=''; document.getElementById('offlineNotice').style.display='flex';" />
-        
-        <div class="stream-overlay-top">
-          <div class="overlay-badge">
-            <span class="rec-indicator"></span>
-            LIVE ENFORCEMENT CAMERA
+    <!-- Left Column: Spotlight Incident & Telemetry Panel -->
+    <section class="spotlight-section">
+      <div class="spotlight-card">
+        <div class="spotlight-header">
+          <div class="spotlight-title">
+            <span class="spotlight-pulse"></span>
+            <span>LATEST CAPTURED INCIDENT SPOTLIGHT</span>
           </div>
-          <div id="streamResolution" class="overlay-badge">1080p | Real-Time Inference</div>
+          <span id="spotlightTimeTag" style="font-size:12px; font-weight:700; color:var(--text-muted);">Real-Time Enforcement</span>
         </div>
 
-        <div id="offlineNotice" style="display:none; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; gap:8px; color:var(--text-muted); font-size:13px; background:#0f172a;">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M15 10l5 5m0-5l-5 5M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        <div id="spotlightContent" class="spotlight-body">
+          <div class="spotlight-img-box">
+            <img id="spotlightImg" src="" alt="Latest Vehicle Evidence" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23cbd5e1%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%228%22>PHOTO</text></svg>'"/>
+          </div>
+          <div class="spotlight-meta">
+            <div class="meta-box">
+              <div class="meta-label">Vehicle Identifier &amp; Infraction</div>
+              <div id="spotlightVehicleId" class="meta-value" style="color:var(--danger); font-size:16px;">Vehicle #-- (Zebra Encroachment)</div>
+            </div>
+            <div class="meta-box">
+              <div class="meta-label">License Plate (ANPR)</div>
+              <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
+                <span id="spotlightPlateText" class="plate-badge" style="font-size:13px; padding:5px 12px;">AWAITING...</span>
+                <span style="font-size:11px; font-weight:800; color:var(--danger); background:var(--danger-bg); border:1px solid #fecaca; padding:3px 8px; border-radius:9999px;">RED ENCROACH</span>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div class="meta-box">
+                <div class="meta-label">OCR Confidence</div>
+                <div id="spotlightConf" class="meta-value" style="color:var(--success);">--%</div>
+              </div>
+              <div class="meta-box">
+                <div class="meta-label">Capture Time</div>
+                <div id="spotlightTime" class="meta-value">--:--:--</div>
+              </div>
+            </div>
+            <button class="btn-download" style="text-align:center; padding:10px 18px; cursor:pointer; width:100%; border:none;" onclick="openSpotlightModal()">
+              Inspect Full Evidence &amp; Download JPG
+            </button>
+          </div>
+        </div>
+
+        <div id="spotlightEmpty" style="display:none; padding:56px 24px; text-align:center; color:var(--text-muted); flex-direction:column; align-items:center; gap:12px;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="color:#94a3b8;">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
           </svg>
-          Awaiting video feed from StripeGuard Inference Engine...
+          <div style="font-size:16px; font-weight:800; color:var(--text-main);">Active Radar Surveillance Active</div>
+          <p style="font-size:13px; max-width:440px; line-height:1.5;">Monitoring pedestrian zebra crossings. Any vehicle encroaching on RED will be captured, enhanced, and presented here in real time.</p>
         </div>
       </div>
 
-      <!-- Autonomous Status Bar (No force switches!) -->
+      <!-- Telemetry & Mode Bar -->
       <div class="mode-bar">
         <div class="mode-indicator">
-          <span class="mode-badge">AUTONOMOUS</span>
-          <span>Automatic Zebra Crossing Violation Detection Active</span>
+          <button id="signalControlBtn" onclick="toggleSignalOverride()" class="pill pill-signal signal-green" style="cursor:pointer; border:none; outline:none; font-size:12px; font-weight:800; padding:6px 14px;" title="Click to toggle traffic light state">
+            <span class="dot"></span>
+            <span id="signalControlText">GREEN LIGHT (LEGAL)</span>
+          </button>
+          <span style="font-size:12px; color:var(--text-muted); font-weight:500;">(Click light to toggle RED / GREEN)</span>
         </div>
         <a href="/api/export_csv" download="violations.csv" class="btn-export">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -819,26 +926,92 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('soundToggle').style.opacity = soundEnabled ? '1' : '0.4';
     });
 
+    let currentSignalState = 'RED';
+
+    async function toggleSignalOverride() {
+      const nextSignal = currentSignalState === 'RED' ? 'GREEN' : 'RED';
+      try {
+        await fetch('/api/signal', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ mode: 'manual', signal: nextSignal })
+        });
+        currentSignalState = nextSignal;
+        updateSignalBtn(nextSignal);
+      } catch (err) {
+        console.error('Signal toggle error:', err);
+      }
+    }
+
+    function updateSignalBtn(sig) {
+      const btn = document.getElementById('signalControlBtn');
+      const text = document.getElementById('signalControlText');
+      const badge = document.getElementById('modeBadge');
+      if (!btn || !text) return;
+      if (sig === 'RED') {
+        btn.className = 'pill pill-signal signal-red';
+        text.innerText = 'RED LIGHT (ACTIVE)';
+        if (badge) {
+          badge.innerText = 'ENFORCING';
+          badge.style.background = 'var(--danger-bg)';
+          badge.style.color = 'var(--danger)';
+          badge.style.borderColor = '#fecaca';
+        }
+      } else {
+        btn.className = 'pill pill-signal signal-green';
+        text.innerText = 'GREEN LIGHT (LEGAL)';
+        if (badge) {
+          badge.innerText = 'MONITORING';
+          badge.style.background = 'var(--success-bg)';
+          badge.style.color = 'var(--success)';
+          badge.style.borderColor = '#bbf7d0';
+        }
+      }
+    }
+
     async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
         if (!res.ok) return;
         const data = await res.json();
-
-        // Update Signal Pill
-        const pill = document.getElementById('signalPill');
-        const text = document.getElementById('signalText');
-        pill.className = 'pill pill-signal ' + (data.signal === 'RED' ? 'signal-red' : (data.signal === 'YELLOW' ? 'signal-yellow' : 'signal-green'));
-        text.innerText = data.signal + ' LIGHT';
-
-        // Update counts
-        document.getElementById('trackedText').innerText = data.tracked_vehicles + ' Tracked';
-        document.getElementById('violationCountPill').innerText = data.violation_count + ' Violations';
-        document.getElementById('fpsText').innerText = data.fps.toFixed(1) + ' FPS';
-
+        const vPill = document.getElementById('violationCountPill');
+        if (vPill) vPill.innerText = data.violation_count + ' Violations';
+        const fpsEl = document.getElementById('fpsText');
+        if (fpsEl) fpsEl.innerText = data.fps.toFixed(1) + ' FPS';
+        if (data.signal && data.signal !== currentSignalState) {
+          currentSignalState = data.signal;
+          updateSignalBtn(data.signal);
+        }
+        if (data.vision_mode) {
+          const vText = document.getElementById('visionModeText');
+          const vIcon = document.getElementById('visionIcon');
+          const vP = document.getElementById('visionPill');
+          if (vText) vText.innerText = data.vision_mode;
+          if (data.vision_mode.includes('Night')) {
+            if (vIcon) vIcon.innerText = '🌙';
+            if (vP) { vP.style.background = '#312e81'; vP.style.color = '#e0e7ff'; vP.style.borderColor = '#4338ca'; }
+          } else if (data.vision_mode.includes('Rain') || data.vision_mode.includes('Adverse')) {
+            if (vIcon) vIcon.innerText = '🌧️';
+            if (vP) { vP.style.background = '#0e7490'; vP.style.color = '#cffafe'; vP.style.borderColor = '#155e75'; }
+          } else {
+            if (vIcon) vIcon.innerText = '☀️';
+            if (vP) { vP.style.background = '#eff6ff'; vP.style.color = '#1d4ed8'; vP.style.borderColor = '#bfdbfe'; }
+          }
+        }
       } catch (err) {
         console.warn('Status poll error', err);
       }
+    }
+
+    let latestSpotlightItem = null;
+
+    function openSpotlightModal() {
+      if (!latestSpotlightItem) return;
+      const cleanPath = (latestSpotlightItem.file_path || '').replace(/\\\\/g, '/');
+      const cleanPlatePath = (latestSpotlightItem.plate_file_path || '').replace(/\\\\/g, '/');
+      const time = new Date(latestSpotlightItem.timestamp).toLocaleTimeString();
+      const conf = (parseFloat(latestSpotlightItem.confidence || 0) * 100).toFixed(0);
+      openModal(cleanPath, latestSpotlightItem.vehicle_id, time, latestSpotlightItem.plate_number, conf, cleanPlatePath);
     }
 
     async function fetchViolations() {
@@ -857,8 +1030,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         if (list.length === 0) {
           feed.innerHTML = '<div class="empty-state">No violations recorded.<br>Monitoring pedestrian zebra zone...</div>';
+          document.getElementById('spotlightContent').style.display = 'none';
+          document.getElementById('spotlightEmpty').style.display = 'flex';
           return;
         }
+
+        const top = list[0];
+        document.getElementById('spotlightContent').style.display = 'grid';
+        document.getElementById('spotlightEmpty').style.display = 'none';
+        const topPath = (top.file_path || '').replace(/\\\\/g, '/');
+        document.getElementById('spotlightImg').src = '/' + topPath + '?t=' + encodeURIComponent(top.timestamp || '');
+        document.getElementById('spotlightVehicleId').innerText = 'Vehicle #' + top.vehicle_id + ' (Zebra Encroachment)';
+        document.getElementById('spotlightPlateText').innerText = top.plate_number || 'PENDING';
+        document.getElementById('spotlightConf').innerText = (parseFloat(top.confidence || 0) * 100).toFixed(0) + '%';
+        const topTime = new Date(top.timestamp).toLocaleTimeString();
+        document.getElementById('spotlightTime').innerText = topTime;
+        latestSpotlightItem = top;
 
         let html = '';
         for (const item of list) {
@@ -872,7 +1059,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           html += `
             <div class="violation-card" onclick="openModal('${cleanPath}', '${id}', '${time}', '${plate}', '${conf}', '${cleanPlatePath}')">
               <div class="thumb-wrapper">
-                <img src="/${cleanPath}" alt="ID ${id}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23cbd5e1%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2210%22>PHOTO</text></svg>'"/>
+                <img src="/${cleanPath}?t=${encodeURIComponent(item.timestamp || '')}" alt="ID ${id}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23cbd5e1%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2210%22>PHOTO</text></svg>'"/>
               </div>
               <div class="violation-info">
                 <div class="info-top">
@@ -957,10 +1144,18 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Expires", "0")
             self.end_headers()
 
+            live_file = Path("violations/live_frame.jpg")
             try:
                 while True:
+                    frame_bytes = None
                     with STATE.lock:
                         frame_bytes = STATE.latest_frame_jpeg
+
+                    if frame_bytes is None and live_file.exists():
+                        try:
+                            frame_bytes = live_file.read_bytes()
+                        except Exception:
+                            pass
 
                     if frame_bytes is not None:
                         self.wfile.write(b"--frame\r\n")
@@ -969,13 +1164,33 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                         self.wfile.write(frame_bytes)
                         self.wfile.write(b"\r\n")
                     time.sleep(0.033)  # ~30 FPS streaming
-            except (BrokenPipeError, ConnectionResetError):
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 pass
             return
 
         # 3. Status API
         elif path == "/api/status":
             summary = STATE.get_status_summary()
+            try:
+                status_file = Path("violations/status.json")
+                if status_file.exists():
+                    with open(status_file, "r", encoding="utf-8") as f:
+                        file_status = json.load(f)
+                        if isinstance(file_status, dict):
+                            summary.update(file_status)
+            except Exception:
+                pass
+            if STATE.signal_mode == "manual":
+                summary["signal"] = STATE.manual_signal
+                summary["signal_mode"] = "manual"
+            try:
+                if Path(LOG_JSON_PATH).exists():
+                    with open(LOG_JSON_PATH, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            summary["violation_count"] = max(summary.get("violation_count", 0), len(data))
+            except Exception:
+                pass
             payload = json.dumps(summary).encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/json")
@@ -987,13 +1202,25 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
 
         # 4. Violations List API
         elif path == "/api/violations":
-            with STATE.lock:
-                violations = list(STATE.recent_violations)
+            violations: list[dict[str, Any]] = []
+            try:
+                if Path(LOG_JSON_PATH).exists():
+                    with open(LOG_JSON_PATH, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            violations = list(reversed(data))[:60]
+            except Exception:
+                pass
+
+            if not violations:
+                with STATE.lock:
+                    violations = list(STATE.recent_violations)[:60]
+
             payload = json.dumps(violations).encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(payload)
             return
@@ -1020,7 +1247,7 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 mime, _ = mimetypes.guess_type(str(file_path))
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", mime or "image/jpeg")
-                self.send_header("Cache-Control", "public, max-age=86400")
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.end_headers()
                 with open(file_path, "rb") as f:
                     self.wfile.write(f.read())
@@ -1035,18 +1262,26 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/signal":
             length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length).decode("utf-8")
+            body = self.rfile.read(length).decode("utf-8").strip()
+            mode = "auto"
+            signal = "RED"
             try:
-                data = json.loads(body)
-                mode = data.get("mode", "auto")
-                signal = data.get("signal", "RED")
-                STATE.set_signal_override(mode, signal)
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"status": "ok"}')
-            except Exception as e:
-                self.send_error(HTTPStatus.BAD_REQUEST, str(e))
+                if body.startswith("{"):
+                    data = json.loads(body)
+                    mode = data.get("mode", "auto")
+                    signal = data.get("signal", "RED")
+                else:
+                    params = parse_qs(body)
+                    mode = params.get("mode", ["auto"])[0]
+                    signal = params.get("signal", ["RED"])[0]
+            except Exception:
+                pass
+            STATE.set_signal_override(mode, signal)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(b'{"status": "ok"}')
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "POST endpoint not found")
@@ -1063,13 +1298,19 @@ class WebDashboard:
 
     def start(self) -> None:
         STATE.load_initial_violations()
-        self.server = ThreadingHTTPServer((self.host, self.port), DashboardHTTPHandler)
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-        self.thread.start()
-        print(f"\n=======================================================")
-        print(f"  >>> Zebra Line Encroachment Penalty System Running! <<<")
-        print(f"  Open your browser: http://localhost:{self.port}")
-        print(f"=======================================================\n")
+        try:
+            self.server = ThreadingHTTPServer((self.host, self.port), DashboardHTTPHandler)
+            self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+            self.thread.start()
+            print(f"\n=======================================================")
+            print(f"  >>> Zebra Line Encroachment Penalty System Running! <<<")
+            print(f"  Open your browser: http://localhost:{self.port}")
+            print(f"=======================================================\n")
+        except OSError as e:
+            if getattr(e, "winerror", None) == 10048 or "Address already in use" in str(e):
+                print(f"[INFO] Web dashboard is already active on http://localhost:{self.port}")
+            else:
+                raise
 
     def stop(self) -> None:
         if self.server is not None:
@@ -1094,8 +1335,28 @@ def update_dashboard(
     violation_count: int,
     fps: float,
     source_fps: float = 0.0,
+    vision_mode: str = "Clear Vision",
 ) -> None:
-    STATE.update_frame(frame, signal, tracked_count, violation_count, fps, source_fps)
+    STATE.update_frame(frame, signal, tracked_count, violation_count, fps, source_fps, vision_mode)
+    try:
+        if frame is not None and cv2 is not None and hasattr(frame, "shape"):
+            live_path = Path("violations/live_frame.jpg")
+            live_path.parent.mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(live_path), frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        status_path = Path("violations/status.json")
+        status_path.write_text(
+            json.dumps({
+                "signal": signal,
+                "tracked_vehicles": tracked_count,
+                "violation_count": violation_count,
+                "fps": round(fps, 1),
+                "source_fps": round(source_fps, 1),
+                "vision_mode": vision_mode,
+            }),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 def add_violation_to_dashboard(entry: dict[str, Any]) -> None:
     STATE.add_violation(entry)

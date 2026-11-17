@@ -21,10 +21,10 @@ OCR_GPU = False
 # Coordinates are calibrated for the Fresno stream's 1920x1080 foreground view.
 # Replace them with values emitted by roi_selector.py when the camera angle changes.
 ZEBRA_ROI = np.array(
-    [[1113, 690], [1067, 736], [1559, 737], [1533, 688]],
+    [[1049, 729], [1007, 789], [1511, 801], [1486, 721]],
     dtype=np.int32,
 )
-SIGNAL_ROIS = [[1209, 356, 1243, 433], [1418, 359, 1447, 435], [1612, 614, 1629, 668]]
+SIGNAL_ROIS = [[1126, 384, 1173, 476], [1359, 387, 1398, 473], [1565, 666, 1587, 723]]
 SIGNAL_ROI = SIGNAL_ROIS[0]
 
 LOWER_RED_1 = np.array([0, 50, 60], dtype=np.uint8)
@@ -41,6 +41,7 @@ CSV_FIELDS = [
     "plate_number",
     "confidence",
     "file_path",
+    "plate_file_path",
 ]
 
 

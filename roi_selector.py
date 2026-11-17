@@ -132,7 +132,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--screen-region", help="Capture x,y,width,height for ROI selection")
     parser.add_argument("--source", help="Select ROIs from a local video file")
     parser.add_argument("--live", action="store_true", help="Select ROIs from the YouTube live stream")
-    parser.add_argument("--delay", type=float, default=8.0, help="Seconds to switch to the game before capture")
+    parser.add_argument(
+        "--delay",
+        type=float,
+        nargs="?",
+        const=8.0,
+        default=8.0,
+        help="Seconds to switch to the game before capture (default: 8; use --delay 0 to disable)",
+    )
     parser.add_argument("--no-save", action="store_true", help="Do not write directly to config.py")
     return parser.parse_args()
 

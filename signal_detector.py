@@ -97,9 +97,9 @@ class TrafficSignalDetector:
         self.last_green_ratio = best_green
 
         # Decision with hysteresis
-        if best_red >= 0.030 and best_red > best_green:
+        if best_red >= 0.028 and best_red > (best_green * 1.15):
             raw_state = "RED"
-        elif best_green >= 0.030 and best_green > best_red:
+        elif best_green >= 0.025 or best_red < 0.020:
             raw_state = "GREEN"
         else:
             raw_state = self.last_state
